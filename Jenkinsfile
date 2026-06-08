@@ -14,5 +14,13 @@ pipeline {
                 sh 'ls -la'
             }
         }
+        stage('Build Docker') {
+    steps {
+        sh 'docker build -t demo-login .'
+    }
+}
+        stage('Run Docker') {
+    steps {
+        sh 'docker run -d -p 8080:8080 --name demo-login demo-login'    
     }
 }
