@@ -15,6 +15,12 @@ pipeline {
             }
         }
 
+        stage('Check Docker') {
+            steps {
+                sh 'docker version'
+            }
+        }
+
         stage('Build Docker') {
             steps {
                 sh 'docker build -t demo-login .'
@@ -23,9 +29,13 @@ pipeline {
 
         stage('Run Docker') {
             steps {
-                sh 'docker run -d -p 8080:8080 --name demo-login demo-login'
+                sh '''
+                docker rm -f demo-login || true
+                docker run -d -p 8080:80 --name demo-login demo-login
+                '''
             }
         }
+
         stage('Check Tools') {
             steps {
                 sh 'git --version'
