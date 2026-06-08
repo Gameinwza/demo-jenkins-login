@@ -26,5 +26,10 @@ pipeline {
                 sh 'docker run -d -p 8080:8080 --name demo-login demo-login'
             }
         }
+        stage('Check Tools') {
+            steps {
+                sh 'git --version'
+            }
+        }
     }
 }
