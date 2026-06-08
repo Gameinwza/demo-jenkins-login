@@ -1,0 +1,16 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    margin-top: 100px;
+}
+
+.login-box {
+    width: 300px;
+}
+
+input, button {
+    width: 100%;
+    margin: 5px 0;
+    padding: 10px;
+}
