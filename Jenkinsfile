@@ -21,25 +21,5 @@ pipeline {
             }
         }
 
-        stage('Build Docker') {
-            steps {
-                sh 'docker build -t demo-login .'
-            }
-        }
-
-        stage('Run Docker') {
-            steps {
-                sh '''
-                docker rm -f demo-login || true
-                docker run -d -p 8080:80 --name demo-login demo-login
-                '''
-            }
-        }
-
-        stage('Check Tools') {
-            steps {
-                sh 'git --version'
-            }
-        }
     }
 }
