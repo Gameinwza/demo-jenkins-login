@@ -1,14 +1,14 @@
 const express = require("express");
-const path = require("path");
 const { validateLogin } = require("./auth");
 
 const app = express();
 
 app.use(express.urlencoded({ extended: true }));
+
+// ให้ Express เสิร์ฟไฟล์ใน public
 app.use(express.static("public"));
 
 app.post("/login", (req, res) => {
-
     const { email, password } = req.body;
 
     if (validateLogin(email, password)) {
