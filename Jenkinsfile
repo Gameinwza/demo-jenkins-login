@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     stages {
-        stage('Hello') {
+
+        stage('Checkout') {
             steps {
-                echo 'Hello Jenkins'
+                checkout scm
             }
         }
 
@@ -14,10 +15,26 @@ pipeline {
                 sh 'ls -la'
             }
         }
+
         stage('Build Image') {
-    steps {
-        sh 'docker build -t demo-jenkins-login .'
-    }
-}
+            steps {
+                sh '''
+                docker build -t demo-jenkins-login .
+                '''
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                sh '''
+                docker rm -f demo-jenkins-login-container || true
+
+                docker run -d \
+                  -p 3000:80 \
+                  --name demo-jenkins-login-container \
+                  demo-jenkins-login
+                '''
+            }
+        }
     }
 }
