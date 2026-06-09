@@ -1,21 +1,25 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Source') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Install') {
+        stage('Install Dependencies') {
             steps {
                 sh 'npm install'
             }
         }
 
-        stage('Unit Test') {
+        stage('Run Unit Tests') {
             steps {
                 sh 'npm test'
             }
@@ -23,13 +27,11 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                docker build -t demo-jenkins-login .
-                '''
+                sh 'docker build -t demo-jenkins-login:latest .'
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy Container') {
             steps {
                 sh '''
                 docker rm -f demo-app || true
@@ -37,7 +39,7 @@ pipeline {
                 docker run -d \
                   --name demo-app \
                   -p 3000:3000 \
-                  demo-jenkins-login
+                  demo-jenkins-login:latest
                 '''
             }
         }
