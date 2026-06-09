@@ -14,6 +14,10 @@ pipeline {
                 sh 'ls -la'
             }
         }
-
+        stage('Build Image') {
+    steps {
+        sh 'docker build -t demo-jenkins-login .'
+    }
+}
     }
 }
