@@ -1,8 +1,13 @@
-FROM jenkins/jenkins:lts
+FROM node:22-alpine
 
-USER root
+WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y docker.io
+COPY package*.json ./
 
-USER jenkins
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
