@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Coverage
+coverage/
+
+# Jest Cache
+.cache/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+*.tar
+
+# Jenkins
+.jenkins/
+
+# Build Output
+dist/
+build/
+
+# Temporary Files
+tmp/
+temp/
+
+# npm
+package-lock.json.bak
+
+# Mac
+.AppleDouble
+.LSOverride
