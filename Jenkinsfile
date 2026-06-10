@@ -46,7 +46,7 @@ pipeline {
         stage('Notify n8n') {
     steps {
         sh '''
-        curl -X POST http://localhost:5678/webhook-test/jenkins-finished \
+        curl -X POST http://host.docker.internal:5678/webhook/jenkins-finished \
         -H "Content-Type: application/json" \
         -d '{
             "project":"demo-login",
