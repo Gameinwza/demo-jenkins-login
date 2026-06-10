@@ -21,7 +21,7 @@ pipeline {
 
         stage('Run Unit Tests') {
             steps {
-                sh 'npm test'
+                sh 'npm test -- --watchAll=false'
             }
         }
 
@@ -34,26 +34,45 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 sh '''
-                docker rm -f demo-app || true
+                    docker rm -f demo-app || true
 
-                docker run -d \
-                  --name demo-app \
-                  -p 3000:3000 \
-                  demo-jenkins-login:latest
+                    docker run -d \
+                        --name demo-app \
+                        -p 3000:3000 \
+                        demo-jenkins-login:latest
                 '''
             }
         }
-        stage('Notify n8n') {
-    steps {
-        sh '''
-        curl -X POST http://host.docker.internal:5678/webhook/jenkins-finished \
-        -H "Content-Type: application/json" \
-        -d '{
-            "project":"demo-login",
-            "status":"SUCCESS"
-        }'
-        '''
     }
-}
+
+    post {
+
+        success {
+            sh """
+                curl -X POST \
+                http://host.docker.internal:5678/webhook/jenkins-finished \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "project":"demo-login",
+                    "status":"SUCCESS",
+                    "build":"${BUILD_NUMBER}",
+                    "job":"${JOB_NAME}"
+                }'
+            """
+        }
+
+        failure {
+            sh """
+                curl -X POST \
+                http://host.docker.internal:5678/webhook/jenkins-finished \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "project":"demo-login",
+                    "status":"FAILED",
+                    "build":"${BUILD_NUMBER}",
+                    "job":"${JOB_NAME}"
+                }'
+            """
+        }
     }
 }
