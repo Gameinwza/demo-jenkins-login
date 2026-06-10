@@ -1,7 +1,7 @@
 # 🚀 Demo Jenkins CI/CD Login App
 
-> เว็บแอปพลิเคชัน Login แบบง่าย สาธิตการทำงานของ CI/CD Pipeline ด้วย Jenkins และ Docker
-> เมื่อ Push โค้ดขึ้น GitHub — Jenkins จะ Build, Test และ Deploy ให้โดยอัตโนมัติ
+> เว็บแอปพลิเคชัน Login แบบง่าย สาธิตการทำงานของ CI/CD Pipeline ด้วย Jenkins และ Docker  
+> เมื่อ Push โค้ดขึ้น GitHub — Jenkins จะ Build, Test, Deploy และแจ้งเตือนผ่าน Email + Slack ให้โดยอัตโนมัติ
 
 ---
 
@@ -14,6 +14,9 @@
 | Unit Testing | Jest |
 | Containerization | Docker |
 | CI/CD Pipeline | Jenkins |
+| Public URL (Local Tunnel) | Cloudflare Tunnel |
+| Notification Automation | n8n |
+| แจ้งเตือน Email & Slack | n8n Workflow |
 
 ---
 
@@ -31,6 +34,29 @@ demo-jenkins-login/
 │
 └── public/
     └── index.html
+```
+
+---
+
+## 🗺️ Full CI/CD Flow
+
+```
+Developer
+   ↓  git push
+GitHub Repository
+   ↓  webhook
+Cloudflare Tunnel
+   ↓
+Jenkins (Docker Desktop)
+   ├── Checkout Source Code
+   ├── Install Dependencies
+   ├── Run Unit Tests
+   ├── Build Docker Image
+   └── Deploy Container
+         ↓
+      n8n Webhook
+         ├── 📧 Send Email
+         └── 💬 Send Slack Notification
 ```
 
 ---
@@ -107,14 +133,26 @@ docker run -d \
 
 ### ติดตั้ง Jenkins ด้วย Docker
 
+> ⚠️ ต้อง Build Jenkins Image ใหม่ที่มี Docker ติดตั้งอยู่ด้วย เพราะ Jenkins Image ปกติไม่มี Docker ภายใน
+
+```dockerfile
+FROM jenkins/jenkins:lts
+USER root
+RUN apt-get update && apt-get install -y docker.io
+RUN usermod -aG docker jenkins
+USER jenkins
+```
+
 ```bash
+docker build -t jenkins-with-docker .
+
 docker run -d \
   --name jenkins \
   -p 8080:8080 \
   -p 50000:50000 \
   -v jenkins_home:/var/jenkins_home \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  jenkins/jenkins:lts
+  jenkins-with-docker
 ```
 
 ### เข้าสู่ระบบ Jenkins
@@ -139,6 +177,43 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 5. Branch: `*/main`
 6. Script Path: `Jenkinsfile`
 7. กด **Save**
+
+---
+
+## 🌐 Cloudflare Tunnel Setup
+
+เนื่องจาก Jenkins รันอยู่บน Local จำเป็นต้องใช้ Cloudflare Tunnel เพื่อให้ GitHub Webhook ส่ง request มาได้
+
+### ติดตั้งและรัน Tunnel
+
+```bash
+# ติดตั้ง cloudflared
+brew install cloudflared
+
+# Install service พร้อม token จาก Cloudflare Dashboard
+sudo cloudflared service install <TOKEN>
+
+# Start service
+sudo launchctl start com.cloudflare.cloudflared
+```
+
+### แก้ปัญหา Cloudflare Block Bot
+
+ไปที่ Cloudflare Dashboard → gameinwza.com → Rules → Configuration Rules
+
+```
+Expression  : (http.host eq "jenkins.yourdomain.com")
+Actions     : Browser Integrity Check OFF
+              Security Level → Essentially Off
+              Bot Fight Mode OFF
+```
+
+### แก้ปัญหา Jenkins CSRF
+
+```
+Manage Jenkins → Security → Configure Global Security
+→ CSRF Protection → Enable proxy compatibility ✅
+```
 
 ---
 
@@ -180,7 +255,7 @@ pipeline {
 
         stage('Run Unit Tests') {
             steps {
-                sh 'npm test'
+                sh 'npm test -- --watchAll=false'
             }
         }
 
@@ -193,49 +268,86 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 sh '''
-                docker rm -f demo-app || true
-
-                docker run -d \
-                  --name demo-app \
-                  -p 3000:3000 \
-                  demo-jenkins-login:latest
+                    docker rm -f demo-app || true
+                    docker run -d \
+                        --name demo-app \
+                        -p 3000:3000 \
+                        demo-jenkins-login:latest
                 '''
             }
         }
+    }
 
+    post {
+        success {
+            sh """
+                curl -X POST \
+                http://host.docker.internal:5678/webhook/jenkins-finished \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "project":"demo-login",
+                    "status":"SUCCESS",
+                    "build":"${BUILD_NUMBER}",
+                    "job":"${JOB_NAME}"
+                }'
+            """
+        }
+        failure {
+            sh """
+                curl -X POST \
+                http://host.docker.internal:5678/webhook/jenkins-finished \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "project":"demo-login",
+                    "status":"FAILED",
+                    "build":"${BUILD_NUMBER}",
+                    "job":"${JOB_NAME}"
+                }'
+            """
+        }
     }
 }
 ```
 
 ---
 
-## 🔁 ลำดับการทำงาน CI/CD
+## 🔔 n8n Notification Setup
+
+เมื่อ Pipeline เสร็จ Jenkins จะส่ง webhook ไปยัง n8n เพื่อแจ้งเตือนอัตโนมัติ
+
+### ติดตั้ง n8n ด้วย Docker
+
+```bash
+docker run -d \
+  --name n8n \
+  -p 5678:5678 \
+  n8nio/n8n
+```
+
+### n8n Workflow
 
 ```
-Developer
-   ↓  git push
-GitHub Repository
-   ↓  trigger
-Jenkins
+Webhook (POST /jenkins-finished)
    ↓
-Checkout Source Code
+Send Email
    ↓
-Install Dependencies
-   ↓
-Run Unit Tests
-   ↓
-Build Docker Image
-   ↓
-Deploy Container
-   ↓
-✅ Application Ready
+Send Slack Message
 ```
+
+### Slack Setup
+
+1. ไปที่ [https://api.slack.com/apps](https://api.slack.com/apps) → Create New App
+2. OAuth & Permissions → Bot Token Scopes เพิ่ม:
+   - `chat:write`
+   - `chat:write.public`
+3. Install to Workspace → Copy **Bot User OAuth Token** (`xoxb-...`)
+4. วาง Token ใน n8n Slack Credential
 
 ---
 
 ## 📋 สรุปผลลัพธ์
 
-เมื่อ Push โค้ดขึ้น GitHub ทุกครั้ง Jenkins จะทำสิ่งเหล่านี้อัตโนมัติ:
+เมื่อ Push โค้ดขึ้น GitHub ทุกครั้ง ระบบจะทำสิ่งเหล่านี้อัตโนมัติ:
 
 1. ✅ ดึงโค้ดล่าสุดจาก Repository
 2. ✅ ติดตั้ง Dependencies
@@ -243,6 +355,8 @@ Deploy Container
 4. ✅ สร้าง Docker Image ใหม่
 5. ✅ ลบ Container เวอร์ชันเดิม
 6. ✅ Deploy Container เวอร์ชันใหม่
+7. 📧 ส่ง Email แจ้งผล Pipeline
+8. 💬 ส่ง Slack แจ้งผล Pipeline
 
 ---
 
@@ -254,3 +368,6 @@ Deploy Container
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
 ![Jenkins](https://img.shields.io/badge/Jenkins-D24939?style=flat&logo=jenkins&logoColor=white)
 ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?style=flat&logo=cloudflare&logoColor=white)
+![n8n](https://img.shields.io/badge/n8n-EA4B71?style=flat&logo=n8n&logoColor=white)
+![Slack](https://img.shields.io/badge/Slack-4A154B?style=flat&logo=slack&logoColor=white)
